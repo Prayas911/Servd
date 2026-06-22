@@ -6,21 +6,22 @@ const MEALDB_BASE = "https://www.themealdb.com/api/json/v1/1";
 export async function getRecipeOfTheDay() {
   try {
     const response = await fetch(`${MEALDB_BASE}/random.php`, {
-      next: { revalidate: 86400 }, // Cache for 24 hours
+      next: { revalidate: 86400 },
     });
 
     if (!response.ok) {
-      throw new Error("Failed to fetch recipe of the day");
+      return { success: false, recipe: null };
     }
 
     const data = await response.json();
+
     return {
       success: true,
-      recipe: data.meals[0],
+      recipe: data.meals?.[0] || null,
     };
   } catch (error) {
-    console.error("Error fetching recipe of the day:", error);
-    throw new Error(error.message || "Failed to load recipe");
+    console.error("Recipe error:", error);
+    return { success: false, recipe: null };
   }
 }
 
@@ -28,21 +29,22 @@ export async function getRecipeOfTheDay() {
 export async function getCategories() {
   try {
     const response = await fetch(`${MEALDB_BASE}/list.php?c=list`, {
-      next: { revalidate: 604800 }, // Cache for 1 week (categories rarely change)
+      next: { revalidate: 604800 },
     });
 
     if (!response.ok) {
-      throw new Error("Failed to fetch categories");
+      return { success: false, categories: [] };
     }
 
     const data = await response.json();
+
     return {
       success: true,
       categories: data.meals || [],
     };
   } catch (error) {
-    console.error("Error fetching categories:", error);
-    throw new Error(error.message || "Failed to load categories");
+    console.error("Categories error:", error);
+    return { success: false, categories: [] };
   }
 }
 
@@ -50,24 +52,24 @@ export async function getCategories() {
 export async function getAreas() {
   try {
     const response = await fetch(`${MEALDB_BASE}/list.php?a=list`, {
-      next: { revalidate: 604800 }, // Cache for 1 week
+      next: { revalidate: 604800 },
     });
 
     if (!response.ok) {
-      throw new Error("Failed to fetch areas");
+      return { success: false, areas: [] };
     }
 
     const data = await response.json();
+
     return {
       success: true,
       areas: data.meals || [],
     };
   } catch (error) {
-    console.error("Error fetching areas:", error);
-    throw new Error(error.message || "Failed to load areas");
+    console.error("Areas error:", error);
+    return { success: false, areas: [] };
   }
 }
-
 // Get meals by category
 export async function getMealsByCategory(category) {
   try {
