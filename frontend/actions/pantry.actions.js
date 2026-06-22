@@ -6,15 +6,11 @@ import { freePantryScans, proTierLimit } from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 
 const STRAPI_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+  process.env.STRAPI_API_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-if (!GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY is missing in environment variables");
-}
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Scan image with Gemini Vision
 export async function scanPantryImage(formData) {
