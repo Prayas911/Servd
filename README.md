@@ -1,5 +1,10 @@
 # 🍽️ Servd – AI Recipe Maker Platform
 
+
+![Servd Banner](banner.png.png)
+
+
+
 Turn your ingredients into delicious meals with AI.
 
 Servd is a modern AI-powered recipe platform that helps users discover recipes from ingredients they already have. Simply enter ingredients or scan pantry items and let AI generate personalized recipes, cooking instructions, nutritional insights, and smart ingredient substitutions.
