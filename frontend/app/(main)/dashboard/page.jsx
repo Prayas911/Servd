@@ -20,6 +20,9 @@ export default async function DashboardPage() {
   const recipeOfTheDay = recipeData?.recipe;
   const categories = categoriesData?.categories || [];
   const areas = areasData?.areas || [];
+  const uniqueAreas = [
+    ...new Map(areas.map((area) => [area.strArea, area])).values(),
+  ];
 
   return (
     <div className="min-h-screen bg-stone-50 py-16 px-4">
@@ -57,7 +60,7 @@ export default async function DashboardPage() {
 
             <Link
               href={`/recipe?cook=${encodeURIComponent(
-                recipeOfTheDay.strMeal
+                recipeOfTheDay.strMeal,
               )}`}
             >
               <div className="relative bg-white border-2 border-stone-900 overflow-hidden hover:border-orange-600 hover:shadow-lg transition-all duration-300 group cursor-pointer">
@@ -167,7 +170,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {areas.map((area) => (
+            {uniqueAreas.map((area) => (
               <Link
                 key={area.strArea}
                 href={`/recipes/cuisine/${area.strArea
