@@ -5,6 +5,14 @@ const STRAPI_URL =
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 
 export const checkUser = async () => {
+  // 🔍 PRODUCTION DIAGNOSTIC LOGS
+  console.log("=== STRAPI CONNECTION DIAGNOSTIC ===");
+  console.log("Configured Target URL:", STRAPI_URL);
+  console.log("Is Token Loaded?:", !!STRAPI_API_TOKEN);
+  console.log("Token Length:", STRAPI_API_TOKEN ? STRAPI_API_TOKEN.length : 0);
+  console.log("Token Starts With:", STRAPI_API_TOKEN ? STRAPI_API_TOKEN.substring(0, 12) + "..." : "EMPTY");
+  console.log("====================================");
+
   const user = await currentUser();
 
   if (!user) {
@@ -13,7 +21,7 @@ export const checkUser = async () => {
   }
 
   if (!STRAPI_API_TOKEN) {
-    console.error("❌ STRAPI_API_TOKEN is missing in .env.local");
+    console.error("❌ STRAPI_API_TOKEN is missing in environment variables");
     return null;
   }
 
@@ -53,6 +61,7 @@ export const checkUser = async () => {
             Authorization: `Bearer ${STRAPI_API_TOKEN}`,
           },
           body: JSON.stringify({ subscriptionTier }),
+          cache: "no-store",
         });
       }
 
