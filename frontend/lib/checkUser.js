@@ -1,18 +1,9 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 
-const STRAPI_URL =
-  process.env.STRAPI_API_URL || "http://localhost:1337";
+const STRAPI_URL = process.env.STRAPI_API_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 
 export const checkUser = async () => {
-  // 🔍 PRODUCTION DIAGNOSTIC LOGS
-  console.log("=== STRAPI CONNECTION DIAGNOSTIC ===");
-  console.log("Configured Target URL:", STRAPI_URL);
-  console.log("Is Token Loaded?:", !!STRAPI_API_TOKEN);
-  console.log("Token Length:", STRAPI_API_TOKEN ? STRAPI_API_TOKEN.length : 0);
-  console.log("Token Starts With:", STRAPI_API_TOKEN ? STRAPI_API_TOKEN.substring(0, 12) + "..." : "EMPTY");
-  console.log("====================================");
-
   const user = await currentUser();
 
   if (!user) {
@@ -30,12 +21,13 @@ export const checkUser = async () => {
   const subscriptionTier = has({ plan: "pro" }) ? "pro" : "free";
 
   try {
-    // Check if user exists in Strapi
+    // 1. Fetch User securely with explicit array parsing
     const existingUserResponse = await fetch(
       `${STRAPI_URL}/api/users?filters[clerkId][$eq]=${user.id}`,
       {
         headers: {
-          Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+          "Authorization": `Bearer ${STRAPI_API_TOKEN}`,
+          "Content-Type": "application/json"
         },
         cache: "no-store",
       }
@@ -49,7 +41,8 @@ export const checkUser = async () => {
 
     const existingUserData = await existingUserResponse.json();
 
-    if (existingUserData.length > 0) {
+    // ✅ FIXED: Accurately read item from the array matrix
+    if (Array.isArray(existingUserData) && existingUserData.length > 0) {
       const existingUser = existingUserData[0];
 
       // Update subscription tier if changed
@@ -58,7 +51,7 @@ export const checkUser = async () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+            "Authorization": `Bearer ${STRAPI_API_TOKEN}`,
           },
           body: JSON.stringify({ subscriptionTier }),
           cache: "no-store",
@@ -68,19 +61,25 @@ export const checkUser = async () => {
       return { ...existingUser, subscriptionTier };
     }
 
-    // Get authenticated role
+    // 2. Fetch authenticated roles layout safely
     const rolesResponse = await fetch(
       `${STRAPI_URL}/api/users-permissions/roles`,
       {
         headers: {
-          Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+          "Authorization": `Bearer ${STRAPI_API_TOKEN}`,
+          "Content-Type": "application/json"
         },
         cache: "no-store",
       }
     );
 
+    if (!rolesResponse.ok) {
+      console.error("❌ Failed to fetch Strapi roles context setup");
+      return null;
+    }
+
     const rolesData = await rolesResponse.json();
-    const authenticatedRole = rolesData.roles.find(
+    const authenticatedRole = rolesData?.roles?.find(
       (role) => role.type === "authenticated"
     );
 
@@ -89,11 +88,13 @@ export const checkUser = async () => {
       return null;
     }
 
-    // Create new user
+    // 3. Create a brand new user profile 
+    const fallbackUsername = user.emailAddresses?.[0]?.emailAddress?.split("@")[0] || `user_${Date.now()}`;
+    const userEmail = user.emailAddresses?.[0]?.emailAddress || "";
+
     const userData = {
-      username:
-        user.username || user.emailAddresses[0].emailAddress.split("@")[0],
-      email: user.emailAddresses[0].emailAddress,
+      username: user.username || fallbackUsername,
+      email: userEmail,
       password: `clerk_managed_${user.id}_${Date.now()}`,
       confirmed: true,
       blocked: false,
@@ -109,7 +110,7 @@ export const checkUser = async () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${STRAPI_API_TOKEN}`,
+        "Authorization": `Bearer ${STRAPI_API_TOKEN}`,
       },
       body: JSON.stringify(userData),
       cache: "no-store",
@@ -124,7 +125,7 @@ export const checkUser = async () => {
     const newUser = await newUserResponse.json();
     return newUser;
   } catch (error) {
-    console.error("❌ Error in checkUser:", error.message);
+    console.error("❌ Error inside checkUser wrapper execution:", error.message);
     return null;
   }
 };
