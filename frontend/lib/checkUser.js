@@ -66,6 +66,7 @@ export const checkUser = async () => {
         headers: {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
+        cache: "no-store",
       }
     );
 
@@ -102,6 +103,7 @@ export const checkUser = async () => {
         Authorization: `Bearer ${STRAPI_API_TOKEN}`,
       },
       body: JSON.stringify(userData),
+      cache: "no-store",
     });
 
     if (!newUserResponse.ok) {
