@@ -6,12 +6,58 @@ import { freeMealRecommendations, proTierLimit } from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const STRAPI_URL =
-  process.env.STRAPI_API_URL || "http://localhost:1337";
+const STRAPI_URL = process.env.STRAPI_API_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN;
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+
+// ================= GEMINI FALLBACK HELPER =================
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function generateContentWithFallback(prompt) {
+  const models = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
+
+  let lastError;
+
+  for (const modelName of models) {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+    });
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`🤖 ${modelName} (Attempt ${attempt})`);
+
+        return await model.generateContent(prompt);
+      } catch (error) {
+        lastError = error;
+
+        const message = error?.message || "";
+
+        if (
+          message.includes("503") ||
+          message.includes("Service Unavailable")
+        ) {
+          console.warn(`${modelName} busy. Retrying in ${attempt * 1500}ms...`);
+
+          await sleep(attempt * 1500);
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    console.warn(`⚠️ Switching from ${modelName} to next model...`);
+  }
+
+  throw (
+    lastError ||
+    new Error("The AI service is currently experiencing high demand.")
+  );
+}
 
 // Helper function to normalize recipe title
 function normalizeTitle(title) {
@@ -33,13 +79,13 @@ async function fetchRecipeImage(recipeName) {
     const searchQuery = `${recipeName}`;
     const response = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodeURIComponent(
-        searchQuery
+        searchQuery,
       )}&per_page=1&orientation=landscape`,
       {
         headers: {
           Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}`,
         },
-      }
+      },
     );
 
     if (!response.ok) {
@@ -85,14 +131,14 @@ export async function getOrGenerateRecipe(formData) {
     // Step 1: Check if recipe already exists in DB (case-insensitive search)
     const searchResponse = await fetch(
       `${STRAPI_URL}/api/recipes?filters[title][$eqi]=${encodeURIComponent(
-        normalizedTitle
+        normalizedTitle,
       )}&populate=*`,
       {
         headers: {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
         cache: "no-store",
-      }
+      },
     );
 
     if (searchResponse.ok) {
@@ -109,7 +155,7 @@ export async function getOrGenerateRecipe(formData) {
               Authorization: `Bearer ${STRAPI_API_TOKEN}`,
             },
             cache: "no-store",
-          }
+          },
         );
 
         let isSaved = false;
@@ -133,10 +179,11 @@ export async function getOrGenerateRecipe(formData) {
     // Step 2: Recipe doesn't exist, generate with Gemini
     console.log("🤖 Recipe not found, generating with Gemini...");
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    // const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
 You are a professional chef and recipe expert. Generate a detailed recipe for: "${normalizedTitle}"
+
 
 CRITICAL: The "title" field MUST be EXACTLY: "${normalizedTitle}" (no changes, no additions like "Classic" or "Easy")
 
@@ -204,7 +251,7 @@ Guidelines:
 - Keep total instructions under 12 steps
 `;
 
-    const result = await model.generateContent(prompt);
+    const result = await generateContentWithFallback(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -217,7 +264,7 @@ Guidelines:
         .trim();
       recipeData = JSON.parse(cleanText);
     } catch (parseError) {
-      console.error("Failed to parse Gemini response:", text);
+      console.error("Failed to parse  response:", text);
       throw new Error("Failed to generate recipe. Please try again.");
     }
 
@@ -233,7 +280,7 @@ Guidelines:
       "dessert",
     ];
     const category = validCategories.includes(
-      recipeData.category?.toLowerCase()
+      recipeData.category?.toLowerCase(),
     )
       ? recipeData.category.toLowerCase()
       : "dinner";
@@ -294,7 +341,7 @@ Guidelines:
 
     console.log(
       "📤 Saving new recipe to database with title:",
-      normalizedTitle
+      normalizedTitle,
     );
 
     const createRecipeResponse = await fetch(`${STRAPI_URL}/api/recipes`, {
@@ -333,8 +380,11 @@ Guidelines:
     };
   } catch (error) {
     console.error("❌ Error in getOrGenerateRecipe:", error);
-    throw new Error(error.message || "Failed to load recipe");
-  }
+return {
+  success: false,
+  error:
+    error.message || "Failed to load recipe",
+};  }
 }
 
 // Save recipe to user's collection (bookmark)
@@ -358,7 +408,7 @@ export async function saveRecipeToCollection(formData) {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
         cache: "no-store",
-      }
+      },
     );
 
     if (existingResponse.ok) {
@@ -430,7 +480,7 @@ export async function removeRecipeFromCollection(formData) {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
         cache: "no-store",
-      }
+      },
     );
 
     if (!searchResponse.ok) {
@@ -455,7 +505,7 @@ export async function removeRecipeFromCollection(formData) {
         headers: {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
-      }
+      },
     );
 
     if (!deleteResponse.ok) {
@@ -499,7 +549,7 @@ export async function getRecipesByPantryIngredients() {
         throw new Error(
           `Monthly AI recipe limit reached. ${
             isPro ? "Please contact support." : "Upgrade to Pro!"
-          }`
+          }`,
         );
       }
       throw new Error("Request denied");
@@ -513,7 +563,7 @@ export async function getRecipesByPantryIngredients() {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
         cache: "no-store",
-      }
+      },
     );
 
     if (!pantryResponse.ok) {
@@ -533,7 +583,7 @@ export async function getRecipesByPantryIngredients() {
 
     console.log("🥘 Finding recipes for ingredients:", ingredients);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    // const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     const prompt = `
 You are a professional chef. Given these available ingredients: ${ingredients}
@@ -562,8 +612,7 @@ Rules:
 - Make recipes realistic and delicious
 `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const result = await generateContentWithFallback(prompt);
     const text = response.text();
 
     let recipeSuggestions;
@@ -576,7 +625,7 @@ Rules:
     } catch (parseError) {
       console.error("Failed to parse Gemini response:", text);
       throw new Error(
-        "Failed to generate recipe suggestions. Please try again."
+        "Failed to generate recipe suggestions. Please try again.",
       );
     }
 
@@ -609,7 +658,7 @@ export async function getSavedRecipes() {
           Authorization: `Bearer ${STRAPI_API_TOKEN}`,
         },
         cache: "no-store",
-      }
+      },
     );
 
     if (!response.ok) {
